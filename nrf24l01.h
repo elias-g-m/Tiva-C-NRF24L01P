@@ -127,33 +127,106 @@
 #define RF_PWR_LOW  1
 #define RF_PWR_HIGH 2
 
+#define DATARATE 4000000
+
+#ifndef _BV
+#define _BV(bit) (1 << (bit))
+#endif
+
+ #define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
+/**
+ * Power Amplifier level.
+ *
+ * For use with setPALevel()
+ */
+typedef enum { RF24_PA_MIN = 0,RF24_PA_LOW, RF24_PA_HIGH, RF24_PA_MAX, RF24_PA_ERROR } rf24_pa_dbm_e ;
+
+/**
+ * Data rate.  How fast data moves through the air.
+ *
+ * For use with setDataRate()
+ */
+typedef enum { RF24_1MBPS = 0, RF24_2MBPS, RF24_250KBPS } rf24_datarate_e;
+
+/**
+ * CRC Length.  How big (if any) of a CRC is included.
+ *
+ * For use with setCRCLength()
+ */
+typedef enum { RF24_CRC_DISABLED = 0, RF24_CRC_8, RF24_CRC_16 } rf24_crclength_e;
+
 struct nrf24l01p {
 	uint32_t	CE_PIN_BASE;
 	uint32_t	CE_PIN;
 	uint32_t	SSI_BASE;
+	uint8_t spi_rxbuff[32+1] ; //SPI receive buffer (payload max 32 bytes)
+	uint8_t spi_txbuff[32+1] ; //SPI transmit buffer (payload max 32 bytes + 1 byte for the command)
+	uint8_t payload_size; /**< Fixed size of payloads */
+	bool dynamic_payloads_enabled; /**< Whether dynamic payloads are enabled. */
+	uint8_t pipe0_reading_address[5]; /**< Last address set on pipe 0 for reading. */
+	uint8_t addr_width; /**< The address width to use - 3,4 or 5 bytes. */
+	uint32_t txRxDelay; /**< Var for adjusting delays depending on datarate */
+	rf24_datarate_e datarate;
+	uint8_t channel;
 };
 
+uint32_t nrf24l01p_write_payload(struct nrf24l01p *nrf, const void* buf, uint8_t data_len, const uint8_t writeType);
+
+int nrf24l01p_start_fast_write(struct nrf24l01p *nrf, const void* buf, uint8_t len, const bool multicast);
+
+void nrf24l01p_begin_transaction(struct nrf24l01p *nrf);
+void nrf24l01p_end_transaction(struct nrf24l01p *nrf);
+
+uint32_t nrf24l01p_write_register(struct nrf24l01p *nrf, uint8_t reg, uint8_t value);
+uint32_t nrf24l01p_write_buffer(struct nrf24l01p *nrf, uint8_t reg, const uint8_t* buf, uint8_t len);
+uint32_t nrf24l01p_read_register(struct nrf24l01p *nrf, uint8_t reg);
+
+int nrf24l01p_close_reading_pipe(struct nrf24l01p *nrf, uint8_t pipe );
+
+int nrf24l01p_set_PA_level(struct nrf24l01p *nrf, uint8_t level);
+
+int nrf24l01p_set_retries(struct nrf24l01p *nrf, uint8_t delay, uint8_t count);
+
+int nrf24l01p_set_channel(struct nrf24l01p *nrf, uint8_t channel);
+
+int nrf24l01p_set_data_rate(struct nrf24l01p *nrf, rf24_datarate_e speed);
+
+uint32_t nrf24l01p_flush_rx(struct nrf24l01p *nrf);
+uint32_t nrf24l01p_flush_tx(struct nrf24l01p *nrf);
+
+int nrf24l01p_power_up(struct nrf24l01p *nrf);
+
+int nrf24l01p_toggle_features(struct nrf24l01p *nrf);
+
+void nrf24l01p_ce(struct nrf24l01p *nrf, bool level);
+
 //initialize the radio
-int nrf24l01p_setup(struct *nrf24l01p);
+int nrf24l01p_setup(struct nrf24l01p *nrf, uint32_t CE_PIN_BASE,
+		uint32_t CE_PIN,
+		uint32_t SSI_BASE);
 
 //start listening on pipes opened for reading
-int nrf24l01p_start_listenting(struct *nrf24l01p);
+int nrf24l01p_start_listening(struct nrf24l01p *nrf);
 
 //stop listening and switch to transmit mode
-int nrf24l01p_stop_listening(struct *nrf24l01p);
+int nrf24l01p_stop_listening(struct nrf24l01p *nrf);
 
 //check whether there are bytes available to be read
-bool nrf24l01p_available(struct *nrf24l01p);
+bool nrf24l01p_available(struct nrf24l01p *nrf);
 
 /*read available payload
  * size of the data read is fixed payload size
  */
-int nrf24l01p_read(struct *nrf24l01p, void *buf, uint8_t len);
+int nrf24l01p_read(struct nrf24l01p *nrf, void *buf, uint8_t len);
 
 /* Call nrf24l01p_open_writing_pipe() first to set destination of where to write to
  *
  */
-int nrf24l01p_write(struct *nrf24l01p, const void *buf, uint8_t len);
+bool nrf24l01p_write(struct nrf24l01p *nrf, const void* buf, uint8_t len);
 
 /**New: Open a pipe for writing via byte array. Old addressing format retained for compatibility.
 
@@ -161,8 +234,9 @@ Only one writing pipe can be open at once, but you can change the address you'll
 
 Addresses are assigned via a byte array, default is 5 byte address length s *
 */
-int nrf24l01p_open_writing_pipe(struct *nrf24l01p, const uint8_t *address);
+int nrf24l01p_open_writing_pipe(struct nrf24l01p *nrf, const uint8_t *address);
 
+int nrf24l01p_open_reading_pipe(struct nrf24l01p *nrf, uint8_t number, const uint8_t *address);
 
 
 #endif /* NRF24L01_H_ */
