@@ -125,11 +125,11 @@ void nrf24l01p_end_transaction(struct nrf24l01p *nrf){
 	//TODO: other bases
 }
 
-uint8_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_len)
+uint32_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_len)
 {
-  //uint8_t status;
+  uint32_t status, dontCare;
   uint8_t i = 0;
-  uint32_t *current = (uint32_t *)(buf), dontCare;
+  uint8_t *current = (uint8_t *)(buf);
 
   if(data_len > nrf->payload_size) data_len = nrf->payload_size;
   uint8_t blank_len = nrf->dynamic_payloads_enabled ? 0 : nrf->payload_size - data_len;
@@ -139,11 +139,10 @@ uint8_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_le
 
   nrf24l01p_begin_transaction(nrf);
   SSIDataPut(nrf->SSI_BASE, R_RX_PAYLOAD );
-  SSIDataGet(nrf->SSI_BASE, &dontCare); //toss out the status register read
+  SSIDataGet(nrf->SSI_BASE, &status);
   while ( i < data_len ) {
-	  //TODO: fix for data widths that SSIDataGet deals with
 	SSIDataPut(nrf->SSI_BASE, 0xff );
-    SSIDataGet(nrf->SSI_BASE, &current[i]);
+    SSIDataGet(nrf->SSI_BASE, (uint32_t *)(current++));
     i++;
   }
   while ( blank_len-- ) {
@@ -151,7 +150,7 @@ uint8_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_le
   }
   nrf24l01p_end_transaction(nrf);
 
-  return 1;
+  return status;
 }
 
 int nrf24l01p_read(struct nrf24l01p *nrf, void *buf, uint8_t len) {

@@ -218,6 +218,8 @@ int nrf24l01p_stop_listening(struct nrf24l01p *nrf);
 //check whether there are bytes available to be read
 bool nrf24l01p_available(struct nrf24l01p *nrf);
 
+uint32_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_len);
+
 /*read available payload
  * size of the data read is fixed payload size
  */
