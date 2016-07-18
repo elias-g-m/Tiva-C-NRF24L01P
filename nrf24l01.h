@@ -163,8 +163,6 @@ struct nrf24l01p {
 	uint32_t	CE_PIN_BASE;
 	uint32_t	CE_PIN;
 	uint32_t	SSI_BASE;
-	uint8_t spi_rxbuff[32+1] ; //SPI receive buffer (payload max 32 bytes)
-	uint8_t spi_txbuff[32+1] ; //SPI transmit buffer (payload max 32 bytes + 1 byte for the command)
 	uint8_t payload_size; /**< Fixed size of payloads */
 	bool dynamic_payloads_enabled; /**< Whether dynamic payloads are enabled. */
 	uint8_t pipe0_reading_address[5]; /**< Last address set on pipe 0 for reading. */
@@ -174,40 +172,53 @@ struct nrf24l01p {
 	uint8_t channel;
 };
 
-uint32_t nrf24l01p_write_payload(struct nrf24l01p *nrf, const void* buf, uint8_t data_len, const uint8_t writeType);
+//******* Internal functions (Leaving everything public for now) ********//
 
-int nrf24l01p_start_fast_write(struct nrf24l01p *nrf, const void* buf, uint8_t len, const bool multicast);
-
+//SPI transaction functions. These manually write CS.
+//Necessary because I think Tiva hardware SSI module only does fixed width transfers.
 void nrf24l01p_begin_transaction(struct nrf24l01p *nrf);
 void nrf24l01p_end_transaction(struct nrf24l01p *nrf);
-
-uint32_t nrf24l01p_write_register(struct nrf24l01p *nrf, uint8_t reg, uint8_t value);
-uint32_t nrf24l01p_write_buffer(struct nrf24l01p *nrf, uint8_t reg, const uint8_t* buf, uint8_t len);
-uint32_t nrf24l01p_read_register(struct nrf24l01p *nrf, uint8_t reg);
-
-int nrf24l01p_close_reading_pipe(struct nrf24l01p *nrf, uint8_t pipe );
-
-int nrf24l01p_set_PA_level(struct nrf24l01p *nrf, uint8_t level);
-
-int nrf24l01p_set_retries(struct nrf24l01p *nrf, uint8_t delay, uint8_t count);
-
-int nrf24l01p_set_channel(struct nrf24l01p *nrf, uint8_t channel);
-
-int nrf24l01p_set_data_rate(struct nrf24l01p *nrf, rf24_datarate_e speed);
 
 uint32_t nrf24l01p_flush_rx(struct nrf24l01p *nrf);
 uint32_t nrf24l01p_flush_tx(struct nrf24l01p *nrf);
 
+//internal writing functions
+uint32_t nrf24l01p_write_payload(struct nrf24l01p *nrf, const void* buf, uint8_t data_len, const uint8_t writeType);
+int nrf24l01p_start_fast_write(struct nrf24l01p *nrf, const void* buf, uint8_t len, const bool multicast);
+
+//internal reading
+uint32_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_len);
+
 int nrf24l01p_power_up(struct nrf24l01p *nrf);
 
-int nrf24l01p_toggle_features(struct nrf24l01p *nrf);
-
+//set receive transmit mode
 void nrf24l01p_ce(struct nrf24l01p *nrf, bool level);
+
+//read the status register (as if it doesn't tell us enough times already)
+uint32_t nrf24l01p_get_status(struct nrf24l01p *nrf);
+
+//******** Public API stuff ***************//
 
 //initialize the radio
 int nrf24l01p_setup(struct nrf24l01p *nrf, uint32_t CE_PIN_BASE,
 		uint32_t CE_PIN,
 		uint32_t SSI_BASE);
+
+//Single register functions
+uint32_t nrf24l01p_write_register(struct nrf24l01p *nrf, uint8_t reg, uint8_t value);
+uint32_t nrf24l01p_write_buffer(struct nrf24l01p *nrf, uint8_t reg, const uint8_t* buf, uint8_t len);
+uint32_t nrf24l01p_read_register(struct nrf24l01p *nrf, uint8_t reg);
+
+//reading and writing
+int nrf24l01p_read(struct nrf24l01p *nrf, void *buf, uint8_t len);
+
+bool nrf24l01p_write(struct nrf24l01p *nrf, const void* buf, uint8_t len);
+
+//Pipe opening and closing
+int nrf24l01p_open_writing_pipe(struct nrf24l01p *nrf, const uint8_t *address);
+
+int nrf24l01p_open_reading_pipe(struct nrf24l01p *nrf, uint8_t number, const uint8_t *address);
+int nrf24l01p_close_reading_pipe(struct nrf24l01p *nrf, uint8_t pipe );
 
 //start listening on pipes opened for reading
 int nrf24l01p_start_listening(struct nrf24l01p *nrf);
@@ -218,27 +229,11 @@ int nrf24l01p_stop_listening(struct nrf24l01p *nrf);
 //check whether there are bytes available to be read
 bool nrf24l01p_available(struct nrf24l01p *nrf);
 
-uint32_t nrf24l01p_read_payload(struct nrf24l01p *nrf, void* buf, uint8_t data_len);
-
-/*read available payload
- * size of the data read is fixed payload size
- */
-int nrf24l01p_read(struct nrf24l01p *nrf, void *buf, uint8_t len);
-
-/* Call nrf24l01p_open_writing_pipe() first to set destination of where to write to
- *
- */
-bool nrf24l01p_write(struct nrf24l01p *nrf, const void* buf, uint8_t len);
-
-/**New: Open a pipe for writing via byte array. Old addressing format retained for compatibility.
-
-Only one writing pipe can be open at once, but you can change the address you'll write to. Call nrf24l01p_stop_listening() first.
-
-Addresses are assigned via a byte array, default is 5 byte address length s *
-*/
-int nrf24l01p_open_writing_pipe(struct nrf24l01p *nrf, const uint8_t *address);
-
-int nrf24l01p_open_reading_pipe(struct nrf24l01p *nrf, uint8_t number, const uint8_t *address);
-
+//settings
+int nrf24l01p_set_PA_level(struct nrf24l01p *nrf, uint8_t level);
+int nrf24l01p_set_retries(struct nrf24l01p *nrf, uint8_t delay, uint8_t count);
+int nrf24l01p_set_channel(struct nrf24l01p *nrf, uint8_t channel);
+int nrf24l01p_set_data_rate(struct nrf24l01p *nrf, rf24_datarate_e speed);
+int nrf24l01p_toggle_features(struct nrf24l01p *nrf);
 
 #endif /* NRF24L01_H_ */

@@ -57,9 +57,6 @@ int main(void) {
 
 	IntMasterEnable();
 
-	SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
-	GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_6);
-
 	//set up the radio
 	if( !nrf24l01p_setup(&nrf, GPIO_PORTC_BASE, GPIO_PIN_4, SSI0_BASE) ){
 		//we couldn't communicate with the radio
